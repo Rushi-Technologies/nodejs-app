@@ -1,0 +1,101 @@
+pipeline {
+  agent any
+
+  environment {
+    DOCKER_REGISTRY      = "913103947334.dkr.ecr.ap-south-1.amazonaws.com"
+    DOCKER_REPO          = "nodejs-app"
+    AWS_ECR_REGION       = "ap-south-1"
+    DOCKER_REGISTRY_USER = "AWS"
+    IMAGE_TAG            = "${BUILD_NUMBER}"
+    IMAGE                = "${DOCKER_REGISTRY}/${DOCKER_REPO}:${IMAGE_TAG}"
+    TRIVY_CACHE_DIR      = "${WORKSPACE}/.trivycache"
+    DEPLOY_HOST          = "ec2-user@172.31.1.150"
+  }
+
+  options {
+    buildDiscarder logRotator(numToKeepStr: '5')
+    timeout(time: 10, unit: 'MINUTES')
+    disableConcurrentBuilds()
+    timestamps()
+  }
+
+  stages {
+
+    stage('Git Checkout') {
+      steps {
+        git branch: 'main', credentialsId: 'GitHubCred', url: 'https://github.com/Rushi-Technologies/nodejs-app.git'
+      }
+    }
+
+    stage('Docker Build') {
+      steps {
+        sh """
+          docker build -t ${IMAGE} .
+        """
+      }
+    }
+
+    stage('Trivy Scan (HIGH/CRITICAL)') {
+      steps {
+        sh """
+          mkdir -p ${TRIVY_CACHE_DIR}
+          export TRIVY_CACHE_DIR=${TRIVY_CACHE_DIR}
+
+          # Save output as artifact (helps audit)
+          trivy image --severity HIGH,CRITICAL --no-progress ${IMAGE} | tee trivy-report.txt
+
+          # OPTIONAL: fail build if findings exist (uncomment if you want strict gating)
+          # trivy image --severity HIGH,CRITICAL --exit-code 1 --no-progress ${IMAGE}
+        """
+      }
+    }
+
+    stage('Push Image to ECR') {
+      steps {
+        sh """
+          aws ecr get-login-password --region ${AWS_ECR_REGION} \
+            | docker login -u ${DOCKER_REGISTRY_USER} --password-stdin ${DOCKER_REGISTRY}
+
+          docker push ${IMAGE}
+        """
+      }
+    }
+
+    stage('Deploy to Docker Server') {
+      steps {
+        sshagent(['Docker_Dev_Server']) {
+          sh """
+            ssh -o StrictHostKeyChecking=no ${DEPLOY_HOST} '
+              set -e
+
+              # IMPORTANT: remote server MUST have AWS CLI configured (instance role or ~/.aws)
+              aws ecr get-login-password --region ${AWS_ECR_REGION} \
+                | docker login -u ${DOCKER_REGISTRY_USER} --password-stdin ${DOCKER_REGISTRY}
+
+              docker rm -f nodejs-app || true
+
+              docker run -d --restart always --name nodejs-app \
+                -p 3000:3000 \
+                ${IMAGE}
+                
+              docker image prune -f || true
+            '
+          """
+        }
+      }
+    }
+  }
+
+  post {
+    always {
+      sh "docker image prune -f || true"
+      cleanWs()
+    }
+    success {
+      echo "Deployed ${IMAGE} to ${DEPLOY_HOST}"
+    }
+    failure {
+      echo "Pipeline failed. Check Trivy report + console logs."
+    }
+  }
+}
