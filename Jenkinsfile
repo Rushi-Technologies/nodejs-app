@@ -13,7 +13,7 @@ pipeline {
     }
 
     tools {
-        nodejs 'Node-20.19.5' // Ensure this matches the name of the NodeJS installation in Jenkins
+        nodejs 'Node-JS-25' // Ensure this matches the name of the NodeJS installation in Jenkins
     }
 
     environment {
