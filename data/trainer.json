@@ -2,10 +2,12 @@
   "trainer": {
     "name": "Balaji Reddy Lachhannagari",
     "email": "rushitechnoligesbanglore@gmail.com",
-    "phone": "+91-9900012028"
+    "phone": "+91-9900012028,+91-8296242028",
+    "address": "Bangalore, Karnataka, India",
   },
   "courses": [
     "DevOps Master Program",
+    "DevOps With AWS & Terraform",
     "AWS with Terraform",
     "Kubernetes Advanced"
   ]
