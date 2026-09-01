@@ -1,6 +1,7 @@
-FROM node:24-alpine3.21
+FROM node:24
+LABEL maintainer="Balaji Reddy <rushitechnologiesbanglore@gmail.com>"
 WORKDIR /app
-COPY package.json  package.json
+COPY package*.json package.json
 RUN npm install
 COPY . .
 EXPOSE 3000
