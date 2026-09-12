@@ -1,4 +1,4 @@
-FROM node:24-alpine3.21
+FROM node:26-alpine3.23
 LABEL maintainer="Balaji Reddy <rushitechnologiesbanglore@gmail.com>"
 WORKDIR /app
 COPY package*.json package.json
