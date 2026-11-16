@@ -1,0 +1,97 @@
+pipeline {
+  
+  agent any
+  
+  tools {
+    nodejs 'NodeJS-26.13'
+  }
+  
+  environment {
+        NODEJS_SERVER_IP = "172.31.1.51"
+        NODEJS_SERVER_USER = "ec2-user"
+        REMOTE_PATH = "/home/ec2-user/nodejs-app"
+    }
+
+  
+  options {
+        buildDiscarder logRotator(numToKeepStr: '1')
+        timeout(time: 1, unit: 'HOURS')
+        disableConcurrentBuilds()
+    }
+  
+  stages{
+      
+      stage("Checkout"){
+          steps {
+              git branch: 'main', credentialsId: 'GitHubCredentials', url: 'https://github.com/Rushi-Technologies/nodejs-app.git'
+          }
+      }
+      
+      stage("Verify Dependencies"){
+          steps {
+              sh "npm install"
+          }
+      }
+      
+      stage("Copy App Code"){
+          steps {
+             sshagent(credentials: ['NodeJSServer_SSH_Cred']) {
+                    sh """
+                    ssh -o StrictHostKeyChecking=no  $NODEJS_SERVER_USER@$NODEJS_SERVER_IP "mkdir -p $REMOTE_PATH || true"
+                    rsync -avz --exclude=node_modules --exclude=.git ./ $NODEJS_SERVER_USER@$NODEJS_SERVER_IP:$REMOTE_PATH/
+                    """
+              }
+          }
+      }
+      
+      stage("Start App"){
+          steps {
+             sshagent(credentials: ['NodeJSServer_SSH_Cred']) {
+                  sh '''
+                        ssh $NODEJS_SERVER_USER@$NODEJS_SERVER_IP "
+                            cd $REMOTE_PATH &&
+                            npm install &&
+                            npx pm2 start app.js --name my-app --update-env || npx pm2 restart my-app
+                        "
+                    '''
+              }
+          }
+      }
+      
+      
+  }
+  
+  post {
+      always {
+          
+            script {
+                def buildStatus = currentBuild.result ?: 'SUCCESS'
+                emailext body: '''<!DOCTYPE html>
+                    <html>
+                    <head>
+                        <style>
+                            body { font-family: Arial, sans-serif; }
+                            .header { background-color: #f4f5f7; padding: 10px; border-bottom: 2px solid #ccc; }
+                            .success { color: green; font-weight: bold; }
+                            .failure { color: red; font-weight: bold; }
+                            .content { margin-top: 15px; }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="header">
+                            <h2>Jenkins Build Report</h2>
+                        </div>
+                        <div class="content">
+                            <p><strong>Job:</strong> ${env.JOB_NAME}</p>
+                            <p><strong>Build Number:</strong> #${env.BUILD_NUMBER}</p>
+                            <p><strong>Status:</strong> <span class="${buildStatus == \'SUCCESS\' ? \'success\' : \'failure\'}">${buildStatus}</span></p>
+                            <p>Check the full console output <a href="${env.BUILD_URL}">here</a>.</p>
+                        </div>
+                    </body>
+                    </html>''', mimeType: 'text/html', subject: '${env.JOB_NAME} - Build #${env.BUILD_NUMBER} - ${buildStatus}', to: 'balajireddy.urs@gmail.com'
+            }
+        
+        }
+  }
+  
+}
