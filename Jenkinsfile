@@ -23,11 +23,6 @@ pipeline {
     
     stages{
         
-        stage("Git Clone"){
-            steps {
-                git branch: 'main', credentialsId: 'GitHub_Credentials', url: 'https://github.com/Rushi-Technologies/nodejs-app.git'
-            }
-        }
         
          stage('Install Dependencies') {
             steps {
