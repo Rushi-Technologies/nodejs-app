@@ -12,7 +12,7 @@ pipeline {
     }
 
     environment {
-        NODEJS_SERVER_IP = "172.31.39.158"
+        NODEJS_SERVER_IP = "172.31.1.51"
         NODEJS_SERVER_USER = "ec2-user"
         REMOTE_PATH = "/home/ec2-user/nodejs-app"
     }
@@ -32,7 +32,7 @@ pipeline {
 
         stage("Copy Files to Remote Server") {
             steps {
-             sshagent(['NodeJS_Server_SSH_Cred']) {
+             sshagent(['NodeJSServer_SSH_Cred']) {
                 sh """
                     ssh -o StrictHostKeyChecking=no  $NODEJS_SERVER_USER@$NODEJS_SERVER_IP "mkdir -p $REMOTE_PATH || true"
                     rsync -avz --exclude=node_modules --exclude=.git ./ $NODEJS_SERVER_USER@$NODEJS_SERVER_IP:$REMOTE_PATH/
@@ -43,7 +43,7 @@ pipeline {
 
             stage('Start Node.js Application') {
                 steps {
-                    sshagent(['NodeJS_Server_SSH_Cred']) {
+                    sshagent(['NodeJSServer_SSH_Cred']) {
                     sh '''
                         ssh $NODEJS_SERVER_USER@$NODEJS_SERVER_IP "
                             cd $REMOTE_PATH &&
